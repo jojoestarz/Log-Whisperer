@@ -1,27 +1,67 @@
-# 🤫 Log Whisperer
+# 🔊 Log Whisperer
 
-> Multi-agent incident remediation. AI diagnoses. AI proposes. Human approves. System heals.
+**The trust layer between AI diagnosis and infrastructure action**
 
-## Overview
-Log Whisperer ingests incident logs, performs root cause analysis via a Decision Agent, generates CLI remediation commands via a Writer Agent, dry-runs them through an Argo CD safety hook, visualises the full timeline in Rerun.io, and waits for human approval before executing.
+> Infrastructure Track · AI Agents Hackathon
 
-## Quickstart
+---
+
+## Quick Start
+
 ```bash
+# 1. Set up environment
+cp .env.example .env
+# Add your ANTHROPIC_API_KEY to .env
+
+# 2. Install dependencies
 pip install -r requirements.txt
-cp .env.example .env        # add your API keys
-python api/main.py          # start the API server
-# In another terminal:
-python viz/timeline.py      # open Rerun viewer
-# Trigger a demo incident:
-curl -X POST http://localhost:8000/trigger
+
+# 3. Run with Docker (recommended)
+docker-compose up --build
+
+# OR run locally
+uvicorn server:app --reload --port 8000
+cd ui && npm install && npm run dev
 ```
 
-## Team
-- P1 — Agent Engineer (Decision Agent, Writer Agent)
-- P2 — Infrastructure Lead (MCP tools, Argo CD, API)
-- P3 — Viz & Demo Lead (Rerun.io, demo flow, pitch)
+Open http://localhost:5173 and click **RUN LOG WHISPERER**
+
+---
 
 ## Architecture
+
 ```
-Loki Anomaly → Decision Agent → Writer Agent → Argo Dry-Run → Rerun Timeline → Human Approve → Execute
+Raw Logs → Decision Agent → Writer Agent → Sandbox Gate → Human Approve → System Heals
 ```
+
+**Decision Agent**: Analyses incident logs, identifies root cause  
+**Writer Agent**: Generates exact CLI remediation commands  
+**Sandbox Gate**: Blocks prod access at OS level using `srt`  
+**Human Approval**: One-click approval interface  
+
+---
+
+## Demo Mode
+
+Set `DEMO_MODE=true` in `.env` to use cached responses (no API calls, instant demo).
+
+---
+
+## The Problem
+
+IT downtime costs **$14,056/minute**. Cloudflare's Feb 2026 outage: 57 minutes MTTR.  
+With Log Whisperer: **4 minutes MTTR** — 98.7% reduction, ~$740K saved.
+
+---
+
+## Tech Stack
+
+- **LLM**: Claude (Anthropic API)
+- **Backend**: Python, FastAPI, SSE
+- **Frontend**: React, Vite
+- **Safety**: `srt` sandbox, Argo CD mock
+- **Container**: Docker Compose
+
+---
+
+**"Existing tools observe. We act — safely."**
