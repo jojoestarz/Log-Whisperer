@@ -116,7 +116,7 @@ async def approve():
         "target": "staging",
         "message": "Executing approved fix on staging..."
     })
-    await asyncio.sleep(1.2)
+    await asyncio.sleep(0.8)
     
     # If simulation is active, heal services
     if sim.incident_active:
@@ -132,6 +132,7 @@ async def approve():
             "services": heal_result["services"],
             "message": "Services recovering..."
         })
+        await asyncio.sleep(0.5)
     
     # Resolve incident and calculate final costs
     calc.resolve_incident()
@@ -140,7 +141,7 @@ async def approve():
     
     await emit({
         "type": "resolved",
-        "mttr_seconds": current_cost["duration_seconds"],
+        "mttr_seconds": int(current_cost["duration_seconds"]),
         "total_cost": current_cost["total_cost"],
         "savings": comparison["savings"],
         "message": f"BGP routes restored. MTTR: {current_cost['duration_minutes']:.1f}m — saved ${comparison['savings']:,}"

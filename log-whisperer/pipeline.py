@@ -24,6 +24,7 @@ async def run_pipeline_with_logs(logs: str):
     from agents.memory_agent import get_memory
     from agents.predictor_agent import get_predictor
     from agents.consensus_agent import get_consensus
+    from agents.orchestrator_agent import get_orchestrator
     from safety.argo_hook import run_argo_mock
     from safety.sandbox_executor import run_sandbox
     from viz.confidence_tracker import get_tracker
@@ -32,38 +33,31 @@ async def run_pipeline_with_logs(logs: str):
     memory = get_memory()
     predictor = get_predictor()
     consensus = get_consensus()
+    orchestrator = get_orchestrator()
     consensus.reset()
     
     await _emit({
         "type": "ingesting",
         "message": "Reading cloudflare_bgp_incident.json — 9 events, 33min window"
     })
-    await asyncio.sleep(0.8)
+    await asyncio.sleep(0.3)
     
     # Simulate confidence progression with detailed reasoning
     tracker.simulate_analysis_journey()
     
-    # Emit detailed confidence checkpoints showing AI thinking
-    for point in tracker.points:
+    # Emit only key confidence checkpoints (not all)
+    key_points = [tracker.points[0], tracker.points[len(tracker.points)//2], tracker.points[-1]] if len(tracker.points) >= 3 else tracker.points
+    for point in key_points:
         await _emit({
             "type": "confidence_update",
             "confidence": point.confidence,
             "reasoning": point.reasoning,
             "evidence_count": point.evidence_count
         })
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(0.2)
     
     # Decision Agent
     fault = analyse(logs)
-    
-    # Final confidence point
-    if tracker.points:
-        await _emit({
-            "type": "confidence_update",
-            "confidence": tracker.points[-1].confidence,
-            "reasoning": tracker.points[-1].reasoning,
-            "evidence_count": tracker.points[-1].evidence_count
-        })
     
     await _emit({
         "type": "diagnosis",
@@ -72,7 +66,26 @@ async def run_pipeline_with_logs(logs: str):
         "confidence": fault.confidence,
         "affected_services": fault.affected_services
     })
-    await asyncio.sleep(0.8)
+    await asyncio.sleep(0.3)
+    
+    # Orchestrator Agent - Spawn specialized agents
+    await _emit({
+        "type": "orchestrator_spawning",
+        "message": f"Orchestrator: Analyzing incident type. Spawning specialized agents..."
+    })
+    await asyncio.sleep(0.2)
+    
+    specialists = await orchestrator.analyze_and_spawn("bgp_outage", fault.root_cause)
+    
+    if specialists:
+        for specialist in specialists:
+            await _emit({
+                "type": "specialist_spawned",
+                "agent_name": specialist.name,
+                "expertise": specialist.expertise,
+                "result": specialist.result
+            })
+            await asyncio.sleep(0.2)
     
     # Memory Agent - Check for similar past incidents
     memory_result = memory.suggest_solution(fault.root_cause)
@@ -82,7 +95,7 @@ async def run_pipeline_with_logs(logs: str):
             "message": f"Memory Agent: I've seen {memory_result['similar_count']} similar incidents. Past solution: {memory_result['suggestion']}. Success rate: {memory_result['confidence']*100:.0f}%",
             "confidence": memory_result["confidence"]
         })
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(0.2)
     
     # Predictor Agent - Predict cascading failures
     predictions = predictor.analyze_trends({"root_cause": fault.root_cause})
@@ -94,7 +107,7 @@ async def run_pipeline_with_logs(logs: str):
                 "message": f"Predictor Agent: I predict {len(high_risk)} cascading failures. Highest risk: {high_risk[0]['description']} ({high_risk[0]['probability']*100:.0f}% probability)",
                 "predictions": predictions
             })
-            await asyncio.sleep(0.8)
+            await asyncio.sleep(0.2)
     
     # Writer Agent
     plan = await generate_plan(fault)
@@ -106,7 +119,7 @@ async def run_pipeline_with_logs(logs: str):
         "safety_level": plan.safety_level,
         "plan_id": "plan_a"
     })
-    await asyncio.sleep(0.8)
+    await asyncio.sleep(0.3)
     
     # Critic Agent - Multi-agent debate
     critique_result = await critique(plan, fault)
@@ -117,7 +130,7 @@ async def run_pipeline_with_logs(logs: str):
         "alternative_commands": critique_result["alternative_plan"],
         "confidence": critique_result["confidence"]
     })
-    await asyncio.sleep(0.9)
+    await asyncio.sleep(0.3)
     
     # Show debate conclusion
     if critique_result["recommendation"] == "revise":
@@ -130,7 +143,7 @@ async def run_pipeline_with_logs(logs: str):
         })
         # Use the safer plan
         plan.commands = critique_result["alternative_plan"]
-        await asyncio.sleep(0.7)
+        await asyncio.sleep(0.2)
     
     # Consensus Agent - Multi-agent voting
     consensus.collect_vote("DECISION", "plan_b", 0.97, "Root cause analysis supports this approach")
@@ -143,7 +156,7 @@ async def run_pipeline_with_logs(logs: str):
         "message": f"Consensus Agent: {consensus_result['votes_for']} agents vote for Plan B. Consensus confidence: {consensus_result['confidence']*100:.0f}%",
         "consensus": consensus_result
     })
-    await asyncio.sleep(0.8)
+    await asyncio.sleep(0.3)
     
     # Safety layer
     plan = run_argo_mock(plan)
@@ -151,7 +164,7 @@ async def run_pipeline_with_logs(logs: str):
     
     for v in violations:
         await _emit(v)
-        await asyncio.sleep(0.9)
+        await asyncio.sleep(0.2)
     
     await _emit({
         "type": "awaiting_approval",
