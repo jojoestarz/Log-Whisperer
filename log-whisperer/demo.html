@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Whisperer Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #667eea; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .metric-label { font-size: 12px; color: #666; text-transform: uppercase; }
+        .metric-value { font-size: 28px; font-weight: bold; color: #333; margin-top: 5px; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        button:hover { background: #5568d3; transform: translateY(-2px); }
+        button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .timeline {
+            margin-top: 30px;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+        }
+        .event {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            background: #f8f9fa;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .event-type { font-weight: 600; color: #667eea; margin-bottom: 5px; }
+        .event-message { color: #333; }
+        .approve-section {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .approve-btn {
+            background: #28a745;
+            margin-top: 10px;
+        }
+        .approve-btn:hover { background: #218838; }
+        .resolved {
+            background: #d4edda;
+            border-left-color: #28a745;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 Log Whisperer</h1>
+        <p class="subtitle">AI-Powered Incident Response System</p>
+        
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-label">Baseline MTTR</div>
+                <div class="metric-value">57:00</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Target MTTR</div>
+                <div class="metric-value">04:12</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Reduction</div>
+                <div class="metric-value">98.7%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Savings</div>
+                <div class="metric-value">$740K</div>
+            </div>
+        </div>
+
+        <button id="runBtn" onclick="runPipeline()">▶ RUN LOG WHISPERER</button>
+
+        <div class="timeline" id="timeline"></div>
+    </div>
+
+    <script>
+        let eventSource = null;
+
+        function addEvent(type, message, data = {}) {
+            const timeline = document.getElementById('timeline');
+            const event = document.createElement('div');
+            event.className = 'event';
+            
+            if (type === 'resolved') {
+                event.className = 'event resolved';
+                event.innerHTML = `
+                    <div class="event-type">✅ INCIDENT RESOLVED</div>
+                    <div class="event-message">${message}</div>
+                `;
+            } else if (type === 'approval_required') {
+                event.className = 'approve-section';
+                event.innerHTML = `
+                    <div class="event-type">⚠️ HUMAN APPROVAL REQUIRED</div>
+                    <div class="event-message">${message}</div>
+                    <button class="approve-btn" onclick="approve()">✓ APPROVE & EXECUTE</button>
+                `;
+            } else {
+                event.innerHTML = `
+                    <div class="event-type">${type.toUpperCase().replace(/_/g, ' ')}</div>
+                    <div class="event-message">${message}</div>
+                `;
+            }
+            
+            timeline.appendChild(event);
+            event.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function runPipeline() {
+            const btn = document.getElementById('runBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Running...';
+            
+            document.getElementById('timeline').innerHTML = '';
+
+            fetch('http://localhost:8000/trigger', { method: 'POST' })
+                .then(res => res.json())
+                .then(() => {
+                    eventSource = new EventSource('http://localhost:8000/events');
+                    
+                    eventSource.onmessage = (e) => {
+                        const data = JSON.parse(e.data);
+                        
+                        if (data.type === 'ping') return;
+                        
+                        addEvent(data.type, data.message, data);
+                        
+                        if (data.type === 'resolved') {
+                            eventSource.close();
+                            btn.disabled = false;
+                            btn.textContent = '▶ RUN AGAIN';
+                        }
+                    };
+                })
+                .catch(err => {
+                    addEvent('error', 'Failed to connect to backend: ' + err.message);
+                    btn.disabled = false;
+                    btn.textContent = '▶ RUN LOG WHISPERER';
+                });
+        }
+
+        function approve() {
+            fetch('http://localhost:8000/approve', { method: 'POST' })
+                .then(res => res.json())
+                .then(() => {
+                    console.log('Approval sent');
+                });
+        }
+    </script>
+</body>
+</html>

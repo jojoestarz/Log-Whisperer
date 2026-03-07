@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSE Test</title>
+</head>
+<body>
+    <h1>Log Whisperer SSE Test</h1>
+    <button onclick="triggerSimulation()">Trigger Simulation</button>
+    <button onclick="clearEvents()">Clear</button>
+    <h2>Events:</h2>
+    <div id="events" style="font-family: monospace; white-space: pre-wrap;"></div>
+
+    <script>
+        const eventsDiv = document.getElementById('events');
+        let eventCount = 0;
+
+        // Connect to SSE
+        const es = new EventSource('http://localhost:8000/events');
+        
+        es.onopen = () => {
+            eventsDiv.innerHTML += `[CONNECTED to SSE stream]\n\n`;
+        };
+
+        es.onmessage = (e) => {
+            eventCount++;
+            const evt = JSON.parse(e.data);
+            eventsDiv.innerHTML += `[${eventCount}] ${evt.type}: ${JSON.stringify(evt, null, 2)}\n\n`;
+            eventsDiv.scrollTop = eventsDiv.scrollHeight;
+        };
+
+        es.onerror = (err) => {
+            eventsDiv.innerHTML += `[ERROR] ${err}\n\n`;
+        };
+
+        function triggerSimulation() {
+            fetch('http://localhost:8000/simulate', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    eventsDiv.innerHTML += `[TRIGGERED] ${JSON.stringify(data, null, 2)}\n\n`;
+                });
+        }
+
+        function clearEvents() {
+            eventsDiv.innerHTML = '';
+            eventCount = 0;
+        }
+    </script>
+</body>
+</html>
