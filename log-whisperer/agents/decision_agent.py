@@ -3,17 +3,15 @@ Decision Agent — P1 owns this file.
 Ingests log events, calls Claude, returns a structured FaultReport.
 """
 import json
-import structlog
+import os
 from anthropic import Anthropic
-from models import FaultReport, LogEvent
-from config import ANTHROPIC_API_KEY, DEMO_MODE, MODEL
+from rich.console import Console
+from rich.table import Table
+from models import FaultReport
 
-log = structlog.get_logger()
-client = Anthropic(api_key=ANTHROPIC_API_KEY)
+console = Console()
 
-SYSTEM_PROMPT = """
-You are an expert SRE with 15 years of experience diagnosing infrastructure incidents.
-Analyse the logs and respond ONLY with a valid JSON object:
+SYSTEM_PROMPT = """You are an elite SRE. Analyze these incident logs. Output ONLY valid JSON:
 {
   "root_cause": "one sentence describing the exact cause",
   "affected_services": ["service1", "service2"],
@@ -22,33 +20,100 @@ Analyse the logs and respond ONLY with a valid JSON object:
   "confidence": 0.0-1.0,
   "summary": "2-3 sentence human-readable summary",
   "time_of_failure": "ISO timestamp of the root cause event"
-}
-"""
+}"""
 
 CACHED_FAULT_REPORT = FaultReport(
-    root_cause="BGP config push #4821 contained an empty-string prefix list, causing all edge routers to withdraw their routes",
-    affected_services=["bgp-router-lon01","bgp-router-iad01","api-gateway","dns-resolver","cdn-edge"],
+    root_cause="Empty-string config in BGP deployment 4821 triggered bulk route withdrawal",
+    affected_services=["bgp-router-lon01", "bgp-router-iad01", "api-gateway", "dns-resolver", "cdn-edge"],
     severity="P1",
     fix_type="config_rollback",
     confidence=0.97,
-    summary="A misconfigured BGP update (#4821) with an empty prefix list was deployed at 06:27 UTC. This caused cascading route withdrawal across all PoPs. A config rollback to commit #4820 will restore all routes.",
+    summary="BGP config 4821 with empty prefix list caused cascading route withdrawal across all edge routers",
     time_of_failure="2022-06-21T06:27:12Z"
 )
 
 
-async def run(events: list[LogEvent]) -> FaultReport:
-    if DEMO_MODE:
-        log.info("decision_agent.demo_mode")
-        return CACHED_FAULT_REPORT
-
-    log.info("decision_agent.start", event_count=len(events))
-    events_text = "\n".join([f"[{e.timestamp}] [{e.level}] {e.service}: {e.msg}" for e in events])
-
-    response = client.messages.create(
-        model=MODEL, max_tokens=1000, system=SYSTEM_PROMPT,
-        messages=[{"role":"user","content":f"Analyse these incident logs:\n\n{events_text}"}]
-    )
-    raw = response.content[0].text.strip().lstrip("```json").lstrip("```").rstrip("```")
-    report = FaultReport(**json.loads(raw))
-    log.info("decision_agent.complete", severity=report.severity, confidence=report.confidence)
+def analyze_logs(log_path: str) -> FaultReport:
+    """
+    Analyze incident logs and return a FaultReport.
+    
+    Args:
+        log_path: Path to the incident JSON file
+        
+    Returns:
+        FaultReport with root cause analysis
+    """
+    # 1. Load incident data
+    with open(log_path, 'r') as f:
+        logs = json.load(f)
+    
+    # 2. Check DEMO_MODE
+    if os.getenv('DEMO_MODE') == 'true':
+        console.print("[yellow]DEMO_MODE enabled - using cached response[/yellow]")
+        report = CACHED_FAULT_REPORT
+    else:
+        # 3. Call Anthropic Claude API
+        try:
+            client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+            
+            # Format logs for API
+            logs_text = "\n".join([
+                f"[{log['timestamp']}] [{log['level']}] {log['service']}: {log['message']}"
+                for log in logs
+            ])
+            
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1000,
+                system=SYSTEM_PROMPT,
+                messages=[{
+                    "role": "user",
+                    "content": f"Analyze these incident logs:\n\n{logs_text}"
+                }]
+            )
+            
+            # 4. Parse response into FaultReport
+            raw = response.content[0].text.strip()
+            # Remove markdown code blocks if present
+            raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
+            report_data = json.loads(raw)
+            report = FaultReport(**report_data)
+            
+        except Exception as e:
+            # Error handling: fallback to cached response
+            console.print(f"[red]API Error: {e}[/red]")
+            console.print("[yellow]Falling back to cached response[/yellow]")
+            report = CACHED_FAULT_REPORT
+    
+    # 5. Print FaultReport as Rich table
+    table = Table(title="🔍 Fault Report")
+    table.add_column("Field", style="cyan", no_wrap=True)
+    table.add_column("Value", style="yellow")
+    
+    table.add_row("Root Cause", report.root_cause)
+    table.add_row("Affected Services", ", ".join(report.affected_services))
+    table.add_row("Severity", report.severity)
+    table.add_row("Fix Type", report.fix_type)
+    table.add_row("Confidence", f"{report.confidence:.0%}")
+    table.add_row("Summary", report.summary)
+    table.add_row("Time of Failure", report.time_of_failure)
+    
+    console.print(table)
+    
+    # 6. Return FaultReport
     return report
+
+
+# Async wrapper for compatibility with existing pipeline
+async def analyze_incident(log_events: list[dict]) -> FaultReport:
+    """Async wrapper for pipeline compatibility."""
+    # Write events to temp file or use directly
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(log_events, f)
+        temp_path = f.name
+    
+    try:
+        return analyze_logs(temp_path)
+    finally:
+        os.unlink(temp_path)

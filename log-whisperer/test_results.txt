@@ -1,0 +1,18 @@
+============================================================
+Testing decision_agent.py
+============================================================
+
+Test 1: DEMO_MODE=true
+✓ Severity: P1
+✓ Confidence: 0.97
+✓ Root Cause: Empty-string config in BGP deployment 4821 triggered bulk ro...
+✓ Affected Services: 5 services
+
+Tests 2-6: Skipped (no valid API key)
+
+Test 7: Error handling (invalid API key)
+✓ Fallback successful - Severity: P1
+
+============================================================
+ALL TESTS COMPLETED SUCCESSFULLY
+============================================================

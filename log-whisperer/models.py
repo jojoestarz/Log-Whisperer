@@ -15,6 +15,14 @@ class LogEvent(BaseModel):
     correlated_event: str | None = None
 
 
+class CouncilDebate(BaseModel):
+    """Output from a single agent in the council debate."""
+    agent_name: str
+    hypothesis: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    reasoning: str
+
+
 class FaultReport(BaseModel):
     """Output of the Decision Agent."""
     root_cause: str
@@ -24,6 +32,7 @@ class FaultReport(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     summary: str
     time_of_failure: str
+    debate_summary: list[CouncilDebate] = []
 
 
 class CLICommand(BaseModel):
@@ -61,3 +70,20 @@ class PipelineState(BaseModel):
     dry_run_results: list[DryRunResult] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)
     resolved_at: datetime | None = None
+
+
+class ExecutionLog(BaseModel):
+    """Tracks command execution history."""
+    command: CLICommand
+    executed_at: datetime
+    success: bool
+    output: str
+    error: str | None = None
+
+
+class PipelineHistory(BaseModel):
+    """Historical record of pipeline execution."""
+    incident_id: str
+    state: PipelineState
+    execution_logs: list[ExecutionLog] = []
+    saved_at: datetime = Field(default_factory=datetime.utcnow)

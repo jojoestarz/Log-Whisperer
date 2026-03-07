@@ -1,15 +1,56 @@
-{
-  "incident_id": "cf-2022-06-21-bgp",
-  "title": "Cloudflare Global BGP Outage — June 2022",
-  "events": [
-    {"timestamp":"2022-06-21T06:25:00Z","service":"config-deployer","level":"INFO","msg":"Deploying BGP config update #4821 to all edge routers","correlated_event":"config_push_4821"},
-    {"timestamp":"2022-06-21T06:27:00Z","service":"config-deployer","level":"INFO","msg":"Config #4821 deployed to lon01, iad01, sin01, syd01","correlated_event":"config_push_4821"},
-    {"timestamp":"2022-06-21T06:27:12Z","service":"bgp-validator","level":"WARN","msg":"Config #4821 prefix-list is empty string — validation SKIPPED due to override flag","correlated_event":"config_push_4821"},
-    {"timestamp":"2022-06-21T06:27:58Z","service":"bgp-router-lon01","level":"ERROR","msg":"Route withdrawal: 198.41.200.0/24 — empty prefix list interpreted as withdraw all","correlated_event":"config_push_4821"},
-    {"timestamp":"2022-06-21T06:28:01Z","service":"bgp-router-iad01","level":"ERROR","msg":"Route withdrawal: 172.64.0.0/13 — cascading from lon01","correlated_event":null},
-    {"timestamp":"2022-06-21T06:28:08Z","service":"api-gateway","level":"ERROR","msg":"Upstream unreachable — BGP routes missing for 78% of edge nodes","correlated_event":null},
-    {"timestamp":"2022-06-21T06:28:12Z","service":"dns-resolver","level":"ERROR","msg":"1.1.1.1 unreachable — recursive resolver offline","correlated_event":null},
-    {"timestamp":"2022-06-21T06:28:15Z","service":"cdn-edge","level":"CRIT","msg":"FULL OUTAGE — 0% of requests routing successfully","correlated_event":null},
-    {"timestamp":"2022-06-21T06:29:00Z","service":"loki-monitor","level":"CRIT","msg":"ANOMALY DETECTED: error rate 9800% above baseline — triggering incident response","correlated_event":null}
-  ]
-}
+[
+  {
+    "timestamp": "2022-06-21T06:27:00Z",
+    "service": "config-deployer",
+    "level": "INFO",
+    "message": "Deploying BGP config update 4821 to edge routers"
+  },
+  {
+    "timestamp": "2022-06-21T06:27:12Z",
+    "service": "bgp-validator",
+    "level": "WARN",
+    "message": "Config 4821 contains empty-string prefix list - validation SKIPPED"
+  },
+  {
+    "timestamp": "2022-06-21T06:27:58Z",
+    "service": "bgp-router-lon01",
+    "level": "ERROR",
+    "message": "Route withdrawal detected for 198.41.200.0/24 - prefix list empty, withdrawing all routes"
+  },
+  {
+    "timestamp": "2022-06-21T06:28:01Z",
+    "service": "bgp-router-iad01",
+    "level": "ERROR",
+    "message": "Cascading route withdrawal from lon01 - 172.64.0.0/13 affected"
+  },
+  {
+    "timestamp": "2022-06-21T06:28:10Z",
+    "service": "api-gateway",
+    "level": "ERROR",
+    "message": "Upstream unreachable - BGP routes missing for 80% of edge nodes"
+  },
+  {
+    "timestamp": "2022-06-21T06:28:15Z",
+    "service": "dns-resolver",
+    "level": "ERROR",
+    "message": "1.1.1.1 recursive resolver offline - BGP routing failure"
+  },
+  {
+    "timestamp": "2022-06-21T06:28:20Z",
+    "service": "cdn-edge",
+    "level": "CRITICAL",
+    "message": "FULL OUTAGE - 0% of requests routing successfully"
+  },
+  {
+    "timestamp": "2022-06-21T06:58:00Z",
+    "service": "sre-oncall",
+    "level": "INFO",
+    "message": "Manual rollback of config 4821 initiated - 31 minutes after outage start"
+  },
+  {
+    "timestamp": "2022-06-21T07:00:00Z",
+    "service": "bgp-router-lon01",
+    "level": "INFO",
+    "message": "Routes restored - recovery complete. Total MTTR: 57 minutes"
+  }
+]

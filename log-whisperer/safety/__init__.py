@@ -1,1 +1,1 @@
-from .argo_hook import ArgoSafetyGate
+"""Safety validation and dry-run tools."""
