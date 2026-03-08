@@ -102,6 +102,20 @@ def display_debate(debates: list[CouncilDebate], with_delays: bool = False):
         # Add brief pause after showing hypothesis for audience to read
         if with_delays:
             DemoDelay.hypothesis_read()
+            panel_content,
+            title=f"[{color}]{debate.agent_name}[/{color}]",
+            border_style=color
+        
+        console.print(panel)
+
+        # Show confidence bar
+        bar_length = int(debate.confidence * 30)
+        bar = "█" * bar_length + "░" * (30 - bar_length)
+        console.print(f"[{color}]{bar}[/{color}] {debate.confidence:.0%}\n")
+
+        # Add brief pause after showing hypothesis for audience to read
+        if with_delays:
+            DemoDelay.hypothesis_read()
 
 
 def hold_council_debate(logs: list[dict]) -> FaultReport:
@@ -109,8 +123,8 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
     Hold a multi-agent debate to determine root cause.
     
     Args:
-        logs: List of log event dictionaries
-        
+        console.print("[bold white]📊 Debate Results:[/bold white]\n")
+        display_debate(CACHED_DEBATE, with_delays=True)
     Returns:
         FaultReport with debate_summary included
     """
@@ -138,7 +152,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             DemoDelay.agent_complete()
         
         console.print("[bold white]📊 Debate Results:[/bold white]\n")
-        display_debate(CACHED_DEBATE, with_delays=True)
+        display_debate(CACHED_DEBATE)
         
         # Simulate consensus building with detailed steps
         console.print("\n[bold white]🤝 Reaching Consensus[/bold white]")

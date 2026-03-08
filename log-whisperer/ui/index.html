@@ -19,13 +19,20 @@
             font-family: 'Space Mono', monospace;
             height: 100vh;
             overflow: hidden;
-            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(255, 255, 255, 0.03) 49px, rgba(255, 255, 255, 0.03) 50px),
+                repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(255, 255, 255, 0.03) 49px, rgba(255, 255, 255, 0.03) 50px);
         }
         
         .header {
             position: fixed;
             top: 20px;
-            left: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             font-size: 28px;
             font-weight: bold;
             text-shadow: 0 0 10px #00e87a;
@@ -34,30 +41,34 @@
         }
         
         .status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            font-size: 14px;
-            opacity: 0.8;
-            text-align: right;
-            z-index: 10;
-            line-height: 1.6;
+            font-size: 16px;
+            text-align: center;
+            line-height: 1.8;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        
+        .grid-container {
+            max-width: 600px;
+            max-height: 400px;
         }
         
         canvas {
-            width: 100vw;
-            height: 100vh;
             display: block;
         }
     </style>
 </head>
 <body>
     <div class="header">LOG WHISPERER</div>
+    
     <div class="status" id="status">
         Live Incident Map<br>
-        Click to interact
+        Initializing...
     </div>
-    <canvas id="grid"></canvas>
+    
+    <div class="grid-container">
+        <canvas id="grid"></canvas>
+    </div>
     
     <script>
         const canvas = document.getElementById('grid');
@@ -66,10 +77,11 @@
         let nodes = [];
         let jitters = [];
         
-        // Resize canvas to full window
+        // Resize canvas to container
         function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth || 600;
+            canvas.height = container.clientHeight || 400;
             draw();
         }
         
@@ -92,12 +104,12 @@
             
             if (!nodes.length) return;
             
-            // Calculate grid layout
+            // Calculate grid layout - tighter spacing
             const cols = Math.ceil(Math.sqrt(nodes.length));
             const rows = Math.ceil(nodes.length / cols);
             const cellW = canvas.width / cols;
             const cellH = canvas.height / rows;
-            const size = Math.min(cellW, cellH) * 0.15; // Smaller nodes
+            const size = Math.min(cellW, cellH) * 0.25; // Smaller, closer nodes
             
             // Draw subtle connection lines to center (creates organic web effect)
             ctx.beginPath();
@@ -107,7 +119,7 @@
                 ctx.moveTo(canvas.width / 2, canvas.height / 2);
                 ctx.lineTo(cx, cy);
             }
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
             ctx.lineWidth = 1;
             ctx.stroke();
             
@@ -142,8 +154,8 @@
             // Generate fixed random jitter for organic looseness (only on first load)
             if (jitters.length !== nodes.length) {
                 jitters = nodes.map(() => ({
-                    x: (Math.random() - 0.5) * 60,
-                    y: (Math.random() - 0.5) * 60
+                    x: (Math.random() - 0.5) * 20,
+                    y: (Math.random() - 0.5) * 20
                 }));
             }
             
@@ -168,19 +180,6 @@
                 Connection lost<br>
                 Reconnecting...
             `;
-        };
-        
-        // Click to cycle node states (for demo/testing)
-        canvas.onclick = (e) => {
-            if (!nodes.length) return;
-            
-            // Randomly cycle a node for demo purposes
-            const i = Math.floor(Math.random() * nodes.length);
-            const states = ['healthy', 'failed', 'executing', 'recovered'];
-            const currentIdx = states.indexOf(nodes[i]);
-            nodes[i] = states[(currentIdx + 1) % states.length];
-            
-            draw();
         };
     </script>
 </body>
