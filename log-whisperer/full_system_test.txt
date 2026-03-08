@@ -1,0 +1,35 @@
+Traceback (most recent call last):
+  File "/home/ethan/Projects/Log-Whisperer/log-whisperer/test_full_system.py", line 52, in <module>
+    from agents import writer_agent
+  File "/home/ethan/Projects/Log-Whisperer/log-whisperer/agents/writer_agent.py", line 105
+    data = json.loads(raw)son").lstrip("```").rstrip("```").strip()
+                                                         ^
+SyntaxError: unterminated string literal (detected at line 105)
+============================================================
+FULL SYSTEM TEST
+============================================================
+
+1. Testing config...
+   ✓ LLM_PROVIDER: gemini
+
+2. Testing LLM client...
+   ✓ Client provider: gemini
+
+3. Testing decision_agent...
+   ✓ decision_agent imported
+   ✓ No direct Anthropic imports
+
+4. Testing writer_agent...
+   ❌ Error: unterminated string literal (detected at line 105) (writer_agent.py, line 105)
+
+5. Testing council_agent...
+   ✓ council_agent imported
+   ✓ No direct Anthropic imports
+
+6. Testing actual API call...
+   ✓ API call successful
+   ✓ Response: Hi
+
+============================================================
+✅ ALL TESTS PASSED - SYSTEM READY!
+============================================================

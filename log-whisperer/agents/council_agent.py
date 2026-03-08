@@ -150,16 +150,40 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
                 }]
             )
             
-            # Parse response
+            # Parse response with better error handling
             raw = response_text.strip()
-            raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
-            data = json.loads(raw)
+            
+            # Remove markdown code blocks
+            if raw.startswith("```"):
+                first_newline = raw.find('\n')
+                if first_newline != -1:
+                    raw = raw[first_newline+1:]
+                raw = raw.rstrip("```").strip()
+            
+            # Try to extract JSON if it's embedded
+            if not raw.startswith('{'):
+                start = raw.find('{')
+                end = raw.rfind('}')
+                if start != -1 and end != -1:
+                    raw = raw[start:end+1]
+            
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as je:
+                console.print(f"[red]JSON parse error from {agent_name}: {je}[/red]")
+                console.print(f"[dim]Response preview: {raw[:200]}...[/dim]")
+                # Use fallback data
+                data = {
+                    "hypothesis": "Unable to parse response",
+                    "confidence": 0.5,
+                    "reasoning": f"JSON parsing failed: {str(je)}"
+                }
             
             debate = CouncilDebate(
                 agent_name=agent_name,
-                hypothesis=data['hypothesis'],
-                confidence=data['confidence'],
-                reasoning=data['reasoning']
+                hypothesis=data.get('hypothesis', 'Unknown'),
+                confidence=data.get('confidence', 0.5),
+                reasoning=data.get('reasoning', 'No reasoning provided')
             )
             debates.append(debate)
             console.print(f"[{color}]✓ {agent_name} analysis complete[/{color}]\n")
@@ -185,10 +209,29 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             }]
         )
         
-        # Parse consensus
+        # Parse consensus with better error handling
         raw = consensus_text.strip()
-        raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
-        consensus_data = json.loads(raw)
+        
+        # Remove markdown code blocks
+        if raw.startswith("```"):
+            first_newline = raw.find('\n')
+            if first_newline != -1:
+                raw = raw[first_newline+1:]
+            raw = raw.rstrip("```").strip()
+        
+        # Try to extract JSON if it's embedded
+        if not raw.startswith('{'):
+            start = raw.find('{')
+            end = raw.rfind('}')
+            if start != -1 and end != -1:
+                raw = raw[start:end+1]
+        
+        try:
+            consensus_data = json.loads(raw)
+        except json.JSONDecodeError as je:
+            console.print(f"[red]Consensus JSON parse error: {je}[/red]")
+            console.print(f"[dim]Response preview: {raw[:200]}...[/dim]")
+            raise
         
         # Create FaultReport with debate summary
         fault_report = FaultReport(

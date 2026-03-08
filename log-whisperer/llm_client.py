@@ -73,7 +73,13 @@ class LLMClient:
                 }
             )
             
-            return response.text
+            # Handle response
+            if hasattr(response, 'text') and response.text:
+                return response.text
+            elif hasattr(response, 'candidates') and response.candidates:
+                return response.candidates[0].content.parts[0].text
+            else:
+                raise ValueError(f"Unexpected Gemini response format: {response}")
         
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")

@@ -72,11 +72,30 @@ def analyze_logs(log_path: str) -> FaultReport:
                 }]
             )
             
-            # 4. Parse response into FaultReport
+            # 4. Parse response into FaultReport with better error handling
             raw = response_text.strip()
-            # Remove markdown code blocks if present
-            raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
-            report_data = json.loads(raw)
+            
+            # Remove markdown code blocks
+            if raw.startswith("```"):
+                first_newline = raw.find('\n')
+                if first_newline != -1:
+                    raw = raw[first_newline+1:]
+                raw = raw.rstrip("```").strip()
+            
+            # Try to extract JSON if it's embedded in text
+            if not raw.startswith('{'):
+                start = raw.find('{')
+                end = raw.rfind('}')
+                if start != -1 and end != -1:
+                    raw = raw[start:end+1]
+            
+            try:
+                report_data = json.loads(raw)
+            except json.JSONDecodeError as je:
+                console.print(f"[red]JSON parse error: {je}[/red]")
+                console.print(f"[dim]Raw response preview: {raw[:200]}...[/dim]")
+                raise
+                
             report = FaultReport(**report_data)
             
         except Exception as e:

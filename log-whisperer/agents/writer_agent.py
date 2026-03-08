@@ -10,7 +10,6 @@ from rich.console import Console
 from rich.syntax import Syntax
 from rich.panel import Panel
 from models import FaultReport, RemediationPlan, CLICommand
-import
 
 console = Console()
 
@@ -100,11 +99,33 @@ Generate exactly 3 CLI commands to remediate."""
                 }]
             )
             
-            # 3. Parse response
+            # 3. Parse response with better error handling
             raw = response_text.strip()
-            raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
-            data = json.loads(raw)son").lstrip("```").rstrip("```").strip()
-            data = json.loads(raw)
+            
+            # Remove markdown code blocks
+            if raw.startswith("```"):
+                # Find the first newline after ```
+                first_newline = raw.find('\n')
+                if first_newline != -1:
+                    raw = raw[first_newline+1:]
+                raw = raw.rstrip("```").strip()
+            
+            # Try to extract JSON if it's embedded in text
+            if not raw.startswith('{'):
+                # Look for JSON object in the response
+                start = raw.find('{')
+                end = raw.rfind('}')
+                if start != -1 and end != -1:
+                    raw = raw[start:end+1]
+            
+            console.print(f"[dim]Parsing response ({len(raw)} chars)...[/dim]")
+            
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as je:
+                console.print(f"[red]JSON parse error: {je}[/red]")
+                console.print(f"[dim]Raw response preview: {raw[:200]}...[/dim]")
+                raise
             
             # Validate: must have exactly 3 commands
             if len(data.get('commands', [])) != 3:
