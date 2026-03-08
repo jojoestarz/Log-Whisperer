@@ -1,0 +1,10 @@
+Testing unified LLM client with Gemini...
+============================================================
+✓ Client initialized (provider: gemini)
+
+✓ Response received:
+  Hello! Yes, I am working.
+
+============================================================
+✅ UNIFIED CLIENT WORKING WITH GEMINI!
+============================================================

@@ -1,0 +1,2 @@
+Provider: gemini
+Gemini: AIzaSyDpgVwqZXi82TSP

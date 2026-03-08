@@ -1,0 +1,21 @@
+============================================================
+LLM PROVIDER DIAGNOSTIC
+============================================================
+
+1. Config values:
+   LLM_PROVIDER: gemini
+   ANTHROPIC_API_KEY: Set
+   GEMINI_API_KEY: Set
+
+2. Testing unified LLM client:
+   ✓ Client created
+   ✓ Provider: gemini
+   ✓ Using Gemini (correct)
+
+3. Testing actual API call:
+   ✓ API call successful
+   ✓ Response: Hi
+
+✅ System is using GEMINI correctly!
+
+============================================================

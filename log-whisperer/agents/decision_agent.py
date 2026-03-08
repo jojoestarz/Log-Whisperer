@@ -1,10 +1,10 @@
 """
 Decision Agent — P1 owns this file.
-Ingests log events, calls Claude, returns a structured FaultReport.
+Ingests log events, calls LLM, returns a structured FaultReport.
 """
 import json
 import os
-from anthropic import Anthropic
+from llm_client import get_llm_client
 from rich.console import Console
 from rich.table import Table
 from models import FaultReport
@@ -52,9 +52,9 @@ def analyze_logs(log_path: str) -> FaultReport:
         console.print("[yellow]DEMO_MODE enabled - using cached response[/yellow]")
         report = CACHED_FAULT_REPORT
     else:
-        # 3. Call Anthropic Claude API
+        # 3. Call LLM API
         try:
-            client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+            client = get_llm_client()
             
             # Format logs for API
             logs_text = "\n".join([
@@ -62,8 +62,8 @@ def analyze_logs(log_path: str) -> FaultReport:
                 for log in logs
             ])
             
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+            response_text = client.create_message(
+                model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
                 max_tokens=1000,
                 system=SYSTEM_PROMPT,
                 messages=[{
@@ -73,7 +73,7 @@ def analyze_logs(log_path: str) -> FaultReport:
             )
             
             # 4. Parse response into FaultReport
-            raw = response.content[0].text.strip()
+            raw = response_text.strip()
             # Remove markdown code blocks if present
             raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
             report_data = json.loads(raw)

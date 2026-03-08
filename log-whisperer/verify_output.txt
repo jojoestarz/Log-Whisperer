@@ -1,0 +1,9 @@
+Starting fresh Gemini test...
+✓ google.genai imported successfully
+✓ API key loaded: AIzaSyDpgVwqZXi...FSvg
+✓ Client created
+
+Testing API with models/gemini-2.5-flash...
+✓ Response: Hello!
+
+✅ SUCCESS - Gemini is working!

@@ -1,0 +1,17 @@
+============================================================
+GEMINI API KEY DIAGNOSTIC
+============================================================
+
+1. Checking .env file...
+   Location: /home/ethan/Projects/Log-Whisperer/log-whisperer/.env
+   Exists: True
+
+2. Loading environment variables...
+   LLM_PROVIDER: gemini
+   GEMINI_API_KEY: ✓ Found (AIzaSyDpgVwqZXi...FSvg)
+
+3. Testing Gemini SDK installation...
+   ❌ google-generativeai package not installed
+
+To fix:
+   pip install google-generativeai

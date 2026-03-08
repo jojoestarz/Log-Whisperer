@@ -5,11 +5,12 @@ Receives FaultReport, returns RemediationPlan with CLI commands.
 import json
 import os
 import uuid
-from anthropic import Anthropic
+from llm_client import get_llm_client
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.panel import Panel
 from models import FaultReport, RemediationPlan, CLICommand
+import
 
 console = Console()
 
@@ -77,11 +78,10 @@ def generate_plan(fault: FaultReport) -> RemediationPlan:
     if os.getenv('DEMO_MODE') == 'true':
         console.print("[yellow]DEMO_MODE enabled - using cached plan[/yellow]")
         plan = CACHED_PLAN.model_copy()
-        plan.plan_id = f"plan-{uuid.uuid4().hex[:8]}"
     else:
-        # 2. Call Claude API
+        # 2. Call LLM API
         try:
-            client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+            client = get_llm_client()
             
             prompt = f"""Given root cause: {fault.root_cause}
 Severity: {fault.severity}
@@ -90,8 +90,8 @@ Fix type: {fault.fix_type}
 
 Generate exactly 3 CLI commands to remediate."""
             
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+            response_text = client.create_message(
+                model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
                 max_tokens=1500,
                 system=SYSTEM_PROMPT,
                 messages=[{
@@ -101,8 +101,9 @@ Generate exactly 3 CLI commands to remediate."""
             )
             
             # 3. Parse response
-            raw = response.content[0].text.strip()
+            raw = response_text.strip()
             raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
+            data = json.loads(raw)son").lstrip("```").rstrip("```").strip()
             data = json.loads(raw)
             
             # Validate: must have exactly 3 commands

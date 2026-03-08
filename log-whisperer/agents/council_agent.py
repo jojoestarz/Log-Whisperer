@@ -1,10 +1,6 @@
-"""
-Council Agent — Multi-agent debate system.
-Simulates 3 agents debating root cause, then reaches consensus.
-"""
 import json
 import os
-from anthropic import Anthropic
+from llm_client import get_llm_client
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, BarColumn, TextColumn
@@ -122,7 +118,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
     
     # Real API mode - simulate debate
     try:
-        client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+        client = get_llm_client()
         
         # Format logs for API
         logs_text = "\n".join([
@@ -144,8 +140,8 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
         for agent_name, system_prompt, color in agents:
             console.print(f"[{color}]Consulting {agent_name}...[/{color}]")
             
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+            response_text = client.create_message(
+                model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
                 max_tokens=500,
                 system=system_prompt,
                 messages=[{
@@ -155,7 +151,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             )
             
             # Parse response
-            raw = response.content[0].text.strip()
+            raw = response_text.strip()
             raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
             data = json.loads(raw)
             
@@ -179,8 +175,8 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             for d in debates
         ])
         
-        consensus_response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+        consensus_text = client.create_message(
+            model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
             max_tokens=1000,
             system=CONSENSUS_PROMPT,
             messages=[{
@@ -190,7 +186,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
         )
         
         # Parse consensus
-        raw = consensus_response.content[0].text.strip()
+        raw = consensus_text.strip()
         raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
         consensus_data = json.loads(raw)
         
