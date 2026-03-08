@@ -7,6 +7,7 @@ import os
 import uuid
 from llm_client import get_llm_client
 from json_utils import extract_and_fix_json
+from demo_delays import DemoDelay
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.panel import Panel
@@ -77,6 +78,10 @@ def generate_plan(fault: FaultReport) -> RemediationPlan:
     # 1. Check DEMO_MODE
     if os.getenv('DEMO_MODE') == 'true':
         console.print("[yellow]DEMO_MODE enabled - using cached plan[/yellow]")
+        
+        # Simulate processing time for plan generation
+        DemoDelay.plan_generation()
+        
         plan = CACHED_PLAN.model_copy()
     else:
         # 2. Call LLM API
@@ -150,7 +155,7 @@ Generate exactly 3 CLI commands to remediate."""
         command_displays.append(f"Command {i} ({cmd.risk_level} risk): {cmd.description}")
         command_displays.append(syntax)
     
-    # 6. Wrap in Panel
+    # 6. Wrap in Panel with explanation
     panel_content = "\n".join([
         f"Plan ID: {plan.plan_id}",
         f"Overall Risk: {plan.overall_risk}",
@@ -161,8 +166,19 @@ Generate exactly 3 CLI commands to remediate."""
     
     console.print(Panel(panel_content, title="⚙️ Remediation Plan", border_style="green"))
     
-    # Display each command
+    # Add verbal explanation in demo mode
+    if os.getenv('DEMO_MODE') == 'true':
+        console.print("\n[bold white]📋 Plan Explanation:[/bold white]")
+        console.print("[dim]This remediation plan will execute three sequential commands to resolve the incident.[/dim]")
+        console.print("[dim]Each command has been validated for safety and effectiveness.[/dim]\n")
+        DemoDelay.plan_explanation()
+    
+    # Display each command with delays
     for i, cmd in enumerate(plan.commands, 1):
+        # Add delay between commands in demo mode
+        if os.getenv('DEMO_MODE') == 'true' and i > 1:
+            DemoDelay.command_display()
+        
         if cmd.tool == "git_revert":
             bash_cmd = f"git revert {cmd.args.get('commit', '')} --no-commit"
         elif cmd.tool == "kubectl_apply":
@@ -181,6 +197,10 @@ Generate exactly 3 CLI commands to remediate."""
         
         console.print(f"\n[cyan]Command {i}[/cyan] ({cmd.risk_level} risk): {cmd.description}")
         console.print(Syntax(bash_cmd, "bash", theme="monokai", line_numbers=False))
+        
+        # Add delay for command details in demo mode
+        if os.getenv('DEMO_MODE') == 'true':
+            DemoDelay.command_detail()
     
     return plan
 

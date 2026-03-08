@@ -6,6 +6,7 @@ import json
 import os
 from llm_client import get_llm_client
 from json_utils import extract_and_fix_json
+from demo_delays import DemoDelay
 from rich.console import Console
 from rich.table import Table
 from models import FaultReport
@@ -48,9 +49,19 @@ def analyze_logs(log_path: str) -> FaultReport:
     with open(log_path, 'r') as f:
         logs = json.load(f)
     
+    # Demo: Simulate ingestion
+    if os.getenv('DEMO_MODE') == 'true':
+        DemoDelay.ingestion()
+    
     # 2. Check DEMO_MODE
     if os.getenv('DEMO_MODE') == 'true':
         console.print("[yellow]DEMO_MODE enabled - using cached response[/yellow]")
+        
+        # Simulate processing time for log analysis
+        DemoDelay.initiate_analysis()
+        console.print("[dim]Analyzing incident patterns...[/dim]")
+        DemoDelay.agent_thinking("Decision Agent")
+        
         report = CACHED_FAULT_REPORT
     else:
         # 3. Call LLM API

@@ -62,14 +62,8 @@ CACHED_FAULT_REPORT = FaultReport(
 )
 
 
-def display_debate(debates: list[CouncilDebate], with_delays: bool = False):
-    """
-    Display the council debate with colored panels and confidence bars.
-    
-    Args:
-        debates: List of debate results from agents
-        with_delays: If True, show each hypothesis with a delay (for presentations)
-    """
+def display_debate(debates: list[CouncilDebate]):
+    """Display the council debate with colored panels and confidence bars."""
     colors = ["cyan", "yellow", "magenta"]
     
     console.print("\n[bold white]🏛️  Council Debate in Progress[/bold white]")
@@ -77,10 +71,6 @@ def display_debate(debates: list[CouncilDebate], with_delays: bool = False):
     
     for i, debate in enumerate(debates):
         color = colors[i % len(colors)]
-        
-        # Add delay before showing each hypothesis (except the first)
-        if with_delays and i > 0:
-            DemoDelay.hypothesis_reveal()
         
         # Create panel with agent's position
         panel_content = f"[bold]{debate.hypothesis}[/bold]\n\n"
@@ -98,10 +88,6 @@ def display_debate(debates: list[CouncilDebate], with_delays: bool = False):
         bar_length = int(debate.confidence * 30)
         bar = "█" * bar_length + "░" * (30 - bar_length)
         console.print(f"[{color}]{bar}[/{color}] {debate.confidence:.0%}\n")
-        
-        # Add brief pause after showing hypothesis for audience to read
-        if with_delays:
-            DemoDelay.hypothesis_read()
 
 
 def hold_council_debate(logs: list[dict]) -> FaultReport:
@@ -138,7 +124,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             DemoDelay.agent_complete()
         
         console.print("[bold white]📊 Debate Results:[/bold white]\n")
-        display_debate(CACHED_DEBATE, with_delays=True)
+        display_debate(CACHED_DEBATE)
         
         # Simulate consensus building with detailed steps
         console.print("\n[bold white]🤝 Reaching Consensus[/bold white]")

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOG WHISPERER - Spatial Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0b0f0e;
+            color: #00e87a;
+            font-family: 'Space Mono', monospace;
+            height: 100vh;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .header {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #00e87a;
+            z-index: 10;
+            letter-spacing: 2px;
+        }
+        
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 14px;
+            opacity: 0.8;
+            text-align: right;
+            z-index: 10;
+            line-height: 1.6;
+        }
+        
+        canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">LOG WHISPERER</div>
+    <div class="status" id="status">
+        Live Incident Map<br>
+        Click to interact
+    </div>
+    <canvas id="grid"></canvas>
+    
+    <script>
+        const canvas = document.getElementById('grid');
+        const ctx = canvas.getContext('2d');
+        
+        let nodes = [];
+        let jitters = [];
+        
+        // Resize canvas to full window
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            draw();
+        }
+        
+        window.onresize = resize;
+        resize();
+        
+        // Color mapping
+        const colors = {
+            'healthy': '#00e87a',
+            'failed': '#ff4d6d',
+            'executing': '#f4a228',
+            'recovered': '#4d8fff'
+        };
+        
+        // Draw the spatial grid
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#0b0f0e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if (!nodes.length) return;
+            
+            // Calculate grid layout
+            const cols = Math.ceil(Math.sqrt(nodes.length));
+            const rows = Math.ceil(nodes.length / cols);
+            const cellW = canvas.width / cols;
+            const cellH = canvas.height / rows;
+            const size = Math.min(cellW, cellH) * 0.15; // Smaller nodes
+            
+            // Draw subtle connection lines to center (creates organic web effect)
+            ctx.beginPath();
+            for (let i = 0; i < nodes.length; i++) {
+                const cx = (i % cols) * cellW + cellW / 2 + jitters[i].x;
+                const cy = Math.floor(i / cols) * cellH + cellH / 2 + jitters[i].y;
+                ctx.moveTo(canvas.width / 2, canvas.height / 2);
+                ctx.lineTo(cx, cy);
+            }
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            // Draw nodes with glow
+            for (let i = 0; i < nodes.length; i++) {
+                const x = (i % cols) * cellW + cellW / 2 + jitters[i].x;
+                const y = Math.floor(i / cols) * cellH + cellH / 2 + jitters[i].y;
+                const state = nodes[i];
+                const color = colors[state];
+                
+                // Glow effect
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 15;
+                
+                // Draw node
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        // SSE connection for live updates
+        const eventSource = new EventSource('/events');
+        
+        eventSource.onmessage = (event) => {
+            const state = JSON.parse(event.data);
+            nodes = state.nodes;
+            
+            // Generate fixed random jitter for organic looseness (only on first load)
+            if (jitters.length !== nodes.length) {
+                jitters = nodes.map(() => ({
+                    x: (Math.random() - 0.5) * 60,
+                    y: (Math.random() - 0.5) * 60
+                }));
+            }
+            
+            draw();
+            
+            // Update status
+            const failedCount = nodes.filter(n => n === 'failed').length;
+            const healthyCount = nodes.filter(n => n === 'healthy').length;
+            const executingCount = nodes.filter(n => n === 'executing').length;
+            const recoveredCount = nodes.filter(n => n === 'recovered').length;
+            
+            document.getElementById('status').innerHTML = `
+                ${failedCount} active incidents | ${healthyCount} healthy<br>
+                ${executingCount} executing | ${recoveredCount} recovered<br>
+                ${nodes.length} total nodes<br>
+                Updated: ${new Date().toLocaleTimeString()}
+            `;
+        };
+        
+        eventSource.onerror = () => {
+            document.getElementById('status').innerHTML = `
+                Connection lost<br>
+                Reconnecting...
+            `;
+        };
+        
+        // Click to cycle node states (for demo/testing)
+        canvas.onclick = (e) => {
+            if (!nodes.length) return;
+            
+            // Randomly cycle a node for demo purposes
+            const i = Math.floor(Math.random() * nodes.length);
+            const states = ['healthy', 'failed', 'executing', 'recovered'];
+            const currentIdx = states.indexOf(nodes[i]);
+            nodes[i] = states[(currentIdx + 1) % states.length];
+            
+            draw();
+        };
+    </script>
+</body>
+</html>

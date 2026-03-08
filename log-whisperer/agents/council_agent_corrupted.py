@@ -1,8 +1,10 @@
+"""
+Council Agent — Multi-agent debate system.
+Simulates 3 agents debating root cause, then reaches consensus.
+"""
 import json
 import os
-from llm_client import get_llm_client
-from json_utils import extract_and_fix_json, safe_parse_json
-from demo_delays import DemoDelay
+from anthropic import Anthropic
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, BarColumn, TextColumn
@@ -62,14 +64,8 @@ CACHED_FAULT_REPORT = FaultReport(
 )
 
 
-def display_debate(debates: list[CouncilDebate], with_delays: bool = False):
-    """
-    Display the council debate with colored panels and confidence bars.
-    
-    Args:
-        debates: List of debate results from agents
-        with_delays: If True, show each hypothesis with a delay (for presentations)
-    """
+def display_debate(debates: list[CouncilDebate]):
+    """Display the council debate with colored panels and confidence bars."""
     colors = ["cyan", "yellow", "magenta"]
     
     console.print("\n[bold white]🏛️  Council Debate in Progress[/bold white]")
@@ -77,10 +73,6 @@ def display_debate(debates: list[CouncilDebate], with_delays: bool = False):
     
     for i, debate in enumerate(debates):
         color = colors[i % len(colors)]
-        
-        # Add delay before showing each hypothesis (except the first)
-        if with_delays and i > 0:
-            DemoDelay.hypothesis_reveal()
         
         # Create panel with agent's position
         panel_content = f"[bold]{debate.hypothesis}[/bold]\n\n"
@@ -98,10 +90,6 @@ def display_debate(debates: list[CouncilDebate], with_delays: bool = False):
         bar_length = int(debate.confidence * 30)
         bar = "█" * bar_length + "░" * (30 - bar_length)
         console.print(f"[{color}]{bar}[/{color}] {debate.confidence:.0%}\n")
-        
-        # Add brief pause after showing hypothesis for audience to read
-        if with_delays:
-            DemoDelay.hypothesis_read()
 
 
 def hold_council_debate(logs: list[dict]) -> FaultReport:
@@ -117,39 +105,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
     # Check DEMO_MODE
     if os.getenv('DEMO_MODE') == 'true':
         console.print("[yellow]DEMO_MODE enabled - using cached debate[/yellow]\n")
-        
-        # Simulate multi-agent debate with realistic delays
-        console.print("\n[bold white]🏛️  Initiating Council Debate[/bold white]")
-        console.print("[dim]Consulting 3 expert agents for comprehensive analysis...[/dim]\n")
-        DemoDelay.consensus_start()
-        
-        agents_config = [
-            ("Agent A (Conservative SRE)", "cyan", "Configuration and deployment analysis"),
-            ("Agent B (Network Specialist)", "yellow", "BGP and routing failure analysis"),
-            ("Agent C (Chaos Engineer)", "magenta", "Cascading failure pattern analysis")
-        ]
-        
-        # Simulate each agent analyzing with detailed status
-        for i, (agent_name, color, focus) in enumerate(agents_config):
-            console.print(f"[{color}]▶ Consulting {agent_name}[/{color}]")
-            console.print(f"[dim]  Focus: {focus}[/dim]")
-            DemoDelay.agent_thinking(agent_name)
-            console.print(f"[{color}]✓ {agent_name} analysis complete[/{color}]\n")
-            DemoDelay.agent_complete()
-        
-        console.print("[bold white]📊 Debate Results:[/bold white]\n")
-        display_debate(CACHED_DEBATE, with_delays=True)
-        
-        # Simulate consensus building with detailed steps
-        console.print("\n[bold white]🤝 Reaching Consensus[/bold white]")
-        console.print("[dim]Analyzing expert hypotheses...[/dim]")
-        DemoDelay.consensus_process()
-        
-        console.print("[dim]Weighing confidence levels and evidence...[/dim]")
-        DemoDelay.wait(1.2, "")
-        
-        console.print("[dim]Synthesizing final diagnosis...[/dim]\n")
-        DemoDelay.wait(1.0, "")
+        display_debate(CACHED_DEBATE)
         
         # Display consensus
         consensus_panel = Panel(
@@ -166,7 +122,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
     
     # Real API mode - simulate debate
     try:
-        client = get_llm_client()
+        client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
         
         # Format logs for API
         logs_text = "\n".join([
@@ -188,9 +144,9 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
         for agent_name, system_prompt, color in agents:
             console.print(f"[{color}]Consulting {agent_name}...[/{color}]")
             
-            response_text = client.create_message(
-                model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
-                max_tokens=800,  # Increased for complete responses
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=500,
                 system=system_prompt,
                 messages=[{
                     "role": "user",
@@ -198,24 +154,16 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
                 }]
             )
             
-            # Parse response with robust JSON handling
-            try:
-                data = extract_and_fix_json(response_text)
-            except Exception as je:
-                console.print(f"[red]JSON parse error from {agent_name}: {je}[/red]")
-                console.print(f"[dim]Response preview: {response_text[:300]}...[/dim]")
-                # Use fallback data
-                data = {
-                    "hypothesis": "Unable to parse response",
-                    "confidence": 0.5,
-                    "reasoning": f"JSON parsing failed: {str(je)}"
-                }
+            # Parse response
+            raw = response.content[0].text.strip()
+            raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
+            data = json.loads(raw)
             
             debate = CouncilDebate(
                 agent_name=agent_name,
-                hypothesis=data.get('hypothesis', 'Unknown'),
-                confidence=data.get('confidence', 0.5),
-                reasoning=data.get('reasoning', 'No reasoning provided')
+                hypothesis=data['hypothesis'],
+                confidence=data['confidence'],
+                reasoning=data['reasoning']
             )
             debates.append(debate)
             console.print(f"[{color}]✓ {agent_name} analysis complete[/{color}]\n")
@@ -231,9 +179,9 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             for d in debates
         ])
         
-        consensus_text = client.create_message(
-            model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
-            max_tokens=2000,  # Increased for longer responses
+        consensus_response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1000,
             system=CONSENSUS_PROMPT,
             messages=[{
                 "role": "user",
@@ -241,30 +189,10 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             }]
         )
         
-        # Parse consensus with robust JSON handling
-        try:
-            consensus_data = extract_and_fix_json(consensus_text)
-        except Exception as je:
-            console.print(f"[red]Consensus JSON parse error: {je}[/red]")
-            console.print(f"[dim]Response preview: {consensus_text[:500]}...[/dim]")
-            console.print("[yellow]Falling back to cached consensus[/yellow]")
-            
-            # Use cached fault report but keep the debate summary
-            fault_report = CACHED_FAULT_REPORT.model_copy()
-            fault_report.debate_summary = debates
-            
-            # Display consensus panel with cached data
-            consensus_panel = Panel(
-                f"[bold]{fault_report.root_cause}[/bold]\n\n"
-                f"[dim]Severity:[/dim] {fault_report.severity}\n"
-                f"[dim]Confidence:[/dim] {fault_report.confidence:.0%}\n"
-                f"[dim]Affected Services:[/dim] {len(fault_report.affected_services)}",
-                title="[bold green]✓ Consensus Reached (Cached)[/bold green]",
-                border_style="green"
-            )
-            console.print(consensus_panel)
-            
-            return fault_report
+        # Parse consensus
+        raw = consensus_response.content[0].text.strip()
+        raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
+        consensus_data = json.loads(raw)
         
         # Create FaultReport with debate summary
         fault_report = FaultReport(
