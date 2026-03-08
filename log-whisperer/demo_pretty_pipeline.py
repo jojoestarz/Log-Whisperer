@@ -8,7 +8,7 @@ import asyncio
 os.environ['DEMO_MODE'] = 'true'
 
 from api.pipeline import Pipeline
-from data.load_incident import load_cloudflare_incident
+from data.load_incident import load_incident
 from rich.console import Console
 
 console = Console()
@@ -18,19 +18,22 @@ async def run_demo():
     console.print("[bold cyan]        Log Whisperer - Pretty Event Logging Demo         [/bold cyan]")
     console.print("[bold cyan]═══════════════════════════════════════════════════════════[/bold cyan]\n")
     
+    # Load incident data
+    incident_id, log_events = load_incident()
+    
+    # Convert LogEvent objects to dicts for pipeline
+    log_events_dict = [event.model_dump() for event in log_events]
+    
     # Initialize pipeline with pretty logging enabled
     pipeline = Pipeline(
-        incident_id='demo-001',
+        incident_id=incident_id,
         enable_grid=False,  # Disable grid for cleaner demo
         enable_pretty_logs=True
     )
     
-    # Load incident data
-    log_events = load_cloudflare_incident()
-    
     # Run pipeline - this will show all the pretty event logs
     console.print("[dim]Running pipeline with pretty event logging...[/dim]\n")
-    state = await pipeline.run(log_events)
+    state = await pipeline.run(log_events_dict)
     
     # Simulate human approval
     console.print("\n[dim]Simulating human approval...[/dim]")

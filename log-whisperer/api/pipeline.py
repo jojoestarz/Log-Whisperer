@@ -110,8 +110,16 @@ class Pipeline:
             self.state.status = "failed"
             raise
     
-    def execute_approved_plan(self) -> list[ExecutionLog]:
-        """Execute commands after human approval."""
+    def execute_approved_plan(self, execution_mode: str = None) -> list[ExecutionLog]:
+        """
+        Execute commands after human approval.
+        
+        Args:
+            execution_mode: "dry_run", "safe", or "full". If None, uses EXECUTION_MODE env var.
+        
+        Returns:
+            List of ExecutionLog entries
+        """
         if self.state.status != "awaiting_approval":
             raise ValueError("Pipeline not ready for execution")
         
@@ -120,21 +128,42 @@ class Pipeline:
         if self.enable_pretty_logs:
             log_executing("Applying remediation commands...")
         
+        # Import executor
+        from execution.executor import get_executor
+        executor = get_executor(execution_mode)
+        
         execution_logs = []
         
         # Update grid: mark services as executing
         if self.enable_grid and self.state.fault_report:
             mark_services_executing(self.state.fault_report.affected_services)
         
+        # Execute each command with real executor
         for cmd in self.state.remediation_plan.commands:
+            result = executor.execute(cmd)
+            
             log = ExecutionLog(
                 command=cmd,
                 executed_at=datetime.utcnow(),
-                success=True,  # Mock execution
-                output=f"Executed {cmd.tool} successfully"
+                success=result["success"],
+                output=result["output"] or "",
+                error=result.get("error")
             )
             execution_logs.append(log)
-            logger.info("command.executed", tool=cmd.tool, description=cmd.description)
+            
+            logger.info("command.executed", 
+                       tool=cmd.tool, 
+                       description=cmd.description,
+                       success=result["success"],
+                       mode=result["mode"])
+            
+            # Stop on failure
+            if not result["success"]:
+                logger.error("command.failed", 
+                           tool=cmd.tool,
+                           error=result.get("error"))
+                self.state.status = "failed"
+                return execution_logs
         
         self.state.status = "resolved"
         self.state.resolved_at = datetime.utcnow()
