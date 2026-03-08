@@ -5,21 +5,32 @@ import json
 from typing import List
 
 
-# Map services to grid positions (3 nodes per service)
+# Map services to grid positions (dynamically calculated based on node count)
 SERVICE_POSITIONS = {
-    'bgp-router-lon01': [10, 11, 12],
-    'bgp-router-iad01': [20, 21, 22],
-    'api-gateway': [30, 31, 32],
-    'dns-resolver': [40, 41, 42],
-    'cdn-edge': [50, 51, 52],
-    'config-deployer': [60, 61, 62],
-    'bgp-validator': [70, 71, 72],
+    'bgp-router-lon01': [0, 1],
+    'bgp-router-iad01': [2, 3],
+    'api-gateway': [4, 5],
+    'dns-resolver': [6, 7],
+    'cdn-edge': [8],
+    'config-deployer': [0, 1, 2],  # Fallback to first nodes
+    'bgp-validator': [3, 4, 5],
 }
 
 
 def initialize_grid():
-    """Initialize grid with all healthy nodes."""
-    state = ['healthy'] * 100
+    """Initialize grid with all failed nodes (dynamic count from logs)."""
+    # Try to preserve existing node count, otherwise default to 100
+    try:
+        with open('state.json', 'r') as f:
+            data = json.load(f)
+            node_count = len(data.get('nodes', []))
+            if node_count > 0:
+                state = ['failed'] * node_count
+            else:
+                state = ['failed'] * 100
+    except FileNotFoundError:
+        state = ['failed'] * 100
+    
     with open('state.json', 'w') as f:
         json.dump({'nodes': state}, f)
     return state
@@ -30,7 +41,10 @@ def load_grid_state() -> List[str]:
     try:
         with open('state.json', 'r') as f:
             data = json.load(f)
-            return data.get('nodes', ['healthy'] * 100)
+            nodes = data.get('nodes', [])
+            if not nodes:
+                return initialize_grid()
+            return nodes
     except FileNotFoundError:
         return initialize_grid()
 
@@ -38,18 +52,26 @@ def load_grid_state() -> List[str]:
 def update_services(services: List[str], status: str):
     """
     Update grid state for specific services.
+    For small grids (< 20 nodes), updates all nodes to show system-wide state.
+    For larger grids, updates specific service positions.
     
     Args:
         services: List of service names
         status: Node state ('failed', 'executing', 'recovered', 'healthy')
     """
     state = load_grid_state()
+    max_pos = len(state)
     
-    for service in services:
-        positions = SERVICE_POSITIONS.get(service, [])
-        for pos in positions:
-            if pos < 100:
-                state[pos] = status
+    # For small grids, update all nodes to show system-wide state
+    if max_pos < 20:
+        state = [status] * max_pos
+    else:
+        # For larger grids, use specific positions
+        for service in services:
+            positions = SERVICE_POSITIONS.get(service, [])
+            for pos in positions:
+                if pos < max_pos:
+                    state[pos] = status
     
     with open('state.json', 'w') as f:
         json.dump({'nodes': state}, f)

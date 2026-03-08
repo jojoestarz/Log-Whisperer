@@ -19,9 +19,10 @@ def cli():
 
 @cli.command()
 @click.option('--incident-id', default='demo-001', help='Incident identifier')
-def trigger(incident_id: str):
+@click.option('--mode', default='demo', help='Execution mode: demo, dry_run, safe, full')
+def trigger(incident_id: str, mode: str):
     """Trigger incident analysis pipeline."""
-    log_event("cli.trigger", incident_id=incident_id)
+    log_event("cli.trigger", incident_id=incident_id, mode=mode)
     
     # Load incident data
     log_events = load_cloudflare_incident()
@@ -30,12 +31,18 @@ def trigger(incident_id: str):
     pipeline = Pipeline(incident_id)
     state = asyncio.run(pipeline.run(log_events))
     
-    # Display results
-    grid = TerminalGrid()
-    grid.display(state, duration=10)
+    click.echo(f"\n✅ Analysis complete. Status: {state.status}")
+    click.echo(f"Found {len(state.remediation_plan.commands)} remediation commands.")
     
-    click.echo(f"\n✅ Pipeline complete. Status: {state.status}")
-    click.echo(f"Awaiting approval for {len(state.remediation_plan.commands)} commands.")
+    # In demo mode, auto-execute
+    if mode == 'demo':
+        click.echo("\n🎬 DEMO MODE: Auto-executing remediation plan...")
+        execution_logs = pipeline.execute_approved_plan(execution_mode='dry_run')
+        click.echo(f"\n✅ Remediation complete. Executed {len(execution_logs)} commands.")
+        click.echo(f"Final status: {state.status}")
+    else:
+        click.echo(f"\nAwaiting approval for {len(state.remediation_plan.commands)} commands.")
+        click.echo(f"Run: log-whisperer approve {incident_id}")
 
 
 @cli.command()

@@ -16,56 +16,32 @@ console = Console()
 
 
 def show_main_menu():
-    """Display main menu and get user choice."""
+    """Display production-level startup prompt."""
     console.clear()
     console.print("\n")
     console.print(Panel.fit(
-        "[bold cyan]🤫 Log Whisperer[/bold cyan]\n"
-        "[dim]Multi-agent incident remediation system[/dim]",
-        border_style="cyan"
+        "[bold green]🤫 LOG WHISPERER[/bold green]\n"
+        "[dim green]Multi-agent incident remediation system[/dim green]",
+        border_style="green"
     ))
-    
-    table = Table(show_header=True, header_style="bold cyan", title="Available Options")
-    table.add_column("Option", style="cyan", width=8)
-    table.add_column("Description", style="white", width=60)
-    table.add_column("API Key", style="yellow", width=12)
-    
-    table.add_row(
-        "1",
-        "Run Full Pipeline - Complete incident remediation flow",
-        "Required"
-    )
-    table.add_row(
-        "2",
-        "Quick Execution Demo - Test execution modes (dry/safe/full)",
-        "Not needed"
-    )
-    table.add_row(
-        "3",
-        "Start API Server - Run as HTTP/WebSocket service",
-        "Required"
-    )
-    table.add_row(
-        "4",
-        "Run Tests - Verify system components",
-        "Optional"
-    )
-    table.add_row(
-        "q",
-        "Quit",
-        "-"
-    )
-    
-    console.print(table)
     console.print()
     
+    # Show system status
+    demo_mode = os.getenv('DEMO_MODE', 'false').lower() == 'true'
+    llm_provider = os.getenv('LLM_PROVIDER', 'anthropic')
+    
+    console.print(f"[dim green]LLM Provider:[/dim green] [green]{llm_provider}[/green]")
+    console.print(f"[dim green]Demo Mode:[/dim green] [green]{'enabled' if demo_mode else 'disabled'}[/green]")
+    console.print()
+    
+    # Simple yes/no prompt
     choice = Prompt.ask(
-        "[bold cyan]Select an option[/bold cyan]",
-        choices=["1", "2", "3", "4", "q"],
-        default="2"
+        "[bold green]Start pipeline?[/bold green]",
+        choices=["yes", "no", "y", "n"],
+        default="yes"
     )
     
-    return choice
+    return choice.lower() in ["yes", "y"]
 
 
 def check_api_key():
@@ -78,62 +54,66 @@ def check_api_key():
 
 async def run_full_pipeline():
     """Run the complete pipeline with all agents."""
-    console.print("\n[bold cyan]═══ Full Pipeline Mode ═══[/bold cyan]\n")
+    console.print("\n[bold green]═══ Starting Pipeline ═══[/bold green]\n")
     
-    # Check API key
-    if not check_api_key():
-        console.print("[yellow]⚠ Warning: ANTHROPIC_API_KEY not configured[/yellow]")
-        console.print("[dim]Running in DEMO_MODE with cached responses[/dim]\n")
-        os.environ['DEMO_MODE'] = 'true'
+    # Check if in demo mode
+    demo_mode = os.getenv('DEMO_MODE', 'false').lower() == 'true'
+    if demo_mode:
+        console.print("[green]DEMO_MODE enabled - using cached responses[/green]\n")
     
     # Import here to avoid loading if not needed
     from api.pipeline import Pipeline
     from data.load_incident import load_cloudflare_incident
     
-    # Get execution mode
-    console.print("[dim]Choose execution mode for remediation commands:[/dim]")
-    mode = Prompt.ask(
-        "Execution mode",
-        choices=["dry_run", "safe", "full"],
-        default="dry_run"
-    )
-    console.print()
-    
     # Load incident data
-    console.print("[yellow]Loading incident data...[/yellow]")
+    console.print("[green]Loading incident data...[/green]")
     log_events = load_cloudflare_incident()
     console.print(f"[green]✓[/green] Loaded {len(log_events)} log events\n")
     
     # Initialize pipeline
     pipeline = Pipeline(
         incident_id="cloudflare-bgp-2022",
-        enable_grid=False,
+        enable_grid=True,  # Enable grid updates for visualizer
         enable_pretty_logs=True
     )
     
     # Run pipeline
-    console.print("[yellow]Running pipeline...[/yellow]\n")
+    console.print("[green]Running pipeline...[/green]\n")
     state = await pipeline.run(log_events)
     
     # Show results
     console.print("\n[bold green]✓ Pipeline Analysis Complete[/bold green]")
-    console.print(f"Root Cause: {state.fault_report.root_cause}")
-    console.print(f"Severity: {state.fault_report.severity}")
-    console.print(f"Commands Generated: {len(state.remediation_plan.commands)}")
+    console.print(f"[dim green]Root Cause:[/dim green] [green]{state.fault_report.root_cause}[/green]")
+    console.print(f"[dim green]Severity:[/dim green] [green]{state.fault_report.severity}[/green]")
+    console.print(f"[dim green]Commands Generated:[/dim green] [green]{len(state.remediation_plan.commands)}[/green]")
     
-    # Ask for approval
-    console.print("\n[bold yellow]Ready to execute remediation?[/bold yellow]")
-    approve = Prompt.ask("Execute commands?", choices=["yes", "no"], default="no")
-    
-    if approve == "yes":
-        console.print()
-        execution_logs = pipeline.execute_approved_plan(execution_mode=mode)
+    # Auto-execute in demo mode, otherwise ask
+    if demo_mode:
+        console.print("\n[green]Auto-executing remediation (demo mode)...[/green]")
+        execution_logs = pipeline.execute_approved_plan(execution_mode='dry_run')
         
         console.print(f"\n[bold green]✓ Execution Complete[/bold green]")
-        console.print(f"Commands executed: {len(execution_logs)}")
-        console.print(f"Status: {state.status}")
+        console.print(f"[dim green]Commands executed:[/dim green] [green]{len(execution_logs)}[/green]")
+        console.print(f"[dim green]Status:[/dim green] [green]{state.status}[/green]")
     else:
-        console.print("\n[yellow]Execution cancelled by user[/yellow]")
+        # Ask for approval in production mode
+        console.print("\n[bold green]Ready to execute remediation?[/bold green]")
+        approve = Prompt.ask("[green]Execute commands?[/green]", choices=["yes", "no"], default="no")
+        
+        if approve == "yes":
+            mode = Prompt.ask(
+                "[green]Execution mode[/green]",
+                choices=["dry_run", "safe", "full"],
+                default="dry_run"
+            )
+            console.print()
+            execution_logs = pipeline.execute_approved_plan(execution_mode=mode)
+            
+            console.print(f"\n[bold green]✓ Execution Complete[/bold green]")
+            console.print(f"[dim green]Commands executed:[/dim green] [green]{len(execution_logs)}[/green]")
+            console.print(f"[dim green]Status:[/dim green] [green]{state.status}[/green]")
+        else:
+            console.print("\n[green]Execution cancelled by user[/green]")
 
 
 def run_quick_demo():
@@ -214,31 +194,17 @@ def run_tests():
 def main():
     """Main entry point."""
     try:
-        while True:
-            choice = show_main_menu()
-            
-            if choice == "1":
-                asyncio.run(run_full_pipeline())
-                input("\n[dim]Press Enter to return to menu...[/dim]")
-            
-            elif choice == "2":
-                run_quick_demo()
-                input("\n[dim]Press Enter to return to menu...[/dim]")
-            
-            elif choice == "3":
-                start_api_server()
-                input("\n[dim]Press Enter to return to menu...[/dim]")
-            
-            elif choice == "4":
-                run_tests()
-                input("\n[dim]Press Enter to return to menu...[/dim]")
-            
-            elif choice == "q":
-                console.print("\n[cyan]Goodbye! 👋[/cyan]\n")
-                sys.exit(0)
+        # Show startup prompt
+        should_start = show_main_menu()
+        
+        if should_start:
+            asyncio.run(run_full_pipeline())
+        else:
+            console.print("\n[green]Pipeline cancelled[/green]\n")
+            sys.exit(0)
     
     except KeyboardInterrupt:
-        console.print("\n\n[yellow]Interrupted by user[/yellow]")
+        console.print("\n\n[green]Interrupted by user[/green]")
         sys.exit(0)
     
     except Exception as e:

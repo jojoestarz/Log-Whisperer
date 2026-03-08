@@ -9,6 +9,7 @@ from agents.writer_agent import generate_remediation_plan
 from safety.argo_mock import dry_run_command
 from datetime import datetime
 import structlog
+import os
 
 # Import pretty event logging
 from viz.terminal_logger import (
@@ -138,6 +139,10 @@ class Pipeline:
         if self.enable_grid and self.state.fault_report:
             mark_services_executing(self.state.fault_report.affected_services)
         
+        # Add delay for visual feedback in demo/dry_run mode
+        import time
+        is_demo = os.getenv('DEMO_MODE', 'false').lower() == 'true'
+        
         # Execute each command with real executor
         for cmd in self.state.remediation_plan.commands:
             result = executor.execute(cmd)
@@ -157,6 +162,10 @@ class Pipeline:
                        success=result["success"],
                        mode=result["mode"])
             
+            # Add delay for visual feedback (even in dry_run)
+            if is_demo or result["mode"] == "dry_run":
+                time.sleep(0.5)  # Brief pause between commands for visualization
+            
             # Stop on failure
             if not result["success"]:
                 logger.error("command.failed", 
@@ -168,9 +177,16 @@ class Pipeline:
         self.state.status = "resolved"
         self.state.resolved_at = datetime.utcnow()
         
-        # Update grid: mark services as recovered
+        # Update grid: mark services as recovered (even in dry_run for visualization)
         if self.enable_grid and self.state.fault_report:
             mark_services_recovered(self.state.fault_report.affected_services)
+            
+            # Add delay before final transition to healthy
+            if is_demo or execution_mode == "dry_run":
+                time.sleep(1.0)
+            
+            # Final state: healthy
+            mark_services_healthy(self.state.fault_report.affected_services)
         
         # Calculate MTTR (mock for demo)
         if self.enable_pretty_logs:
