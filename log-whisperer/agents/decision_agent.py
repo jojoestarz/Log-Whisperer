@@ -5,6 +5,7 @@ Ingests log events, calls LLM, returns a structured FaultReport.
 import json
 import os
 from llm_client import get_llm_client
+from json_utils import extract_and_fix_json
 from rich.console import Console
 from rich.table import Table
 from models import FaultReport
@@ -64,7 +65,7 @@ def analyze_logs(log_path: str) -> FaultReport:
             
             response_text = client.create_message(
                 model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
-                max_tokens=1000,
+                max_tokens=1500,  # Increased for complete responses
                 system=SYSTEM_PROMPT,
                 messages=[{
                     "role": "user",
@@ -72,28 +73,12 @@ def analyze_logs(log_path: str) -> FaultReport:
                 }]
             )
             
-            # 4. Parse response into FaultReport with better error handling
-            raw = response_text.strip()
-            
-            # Remove markdown code blocks
-            if raw.startswith("```"):
-                first_newline = raw.find('\n')
-                if first_newline != -1:
-                    raw = raw[first_newline+1:]
-                raw = raw.rstrip("```").strip()
-            
-            # Try to extract JSON if it's embedded in text
-            if not raw.startswith('{'):
-                start = raw.find('{')
-                end = raw.rfind('}')
-                if start != -1 and end != -1:
-                    raw = raw[start:end+1]
-            
+            # 4. Parse response into FaultReport with robust JSON handling
             try:
-                report_data = json.loads(raw)
-            except json.JSONDecodeError as je:
+                report_data = extract_and_fix_json(response_text)
+            except Exception as je:
                 console.print(f"[red]JSON parse error: {je}[/red]")
-                console.print(f"[dim]Raw response preview: {raw[:200]}...[/dim]")
+                console.print(f"[dim]Raw response preview: {response_text[:300]}...[/dim]")
                 raise
                 
             report = FaultReport(**report_data)

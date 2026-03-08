@@ -1,6 +1,7 @@
 import json
 import os
 from llm_client import get_llm_client
+from json_utils import extract_and_fix_json, safe_parse_json
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, BarColumn, TextColumn
@@ -142,7 +143,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             
             response_text = client.create_message(
                 model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
-                max_tokens=500,
+                max_tokens=800,  # Increased for complete responses
                 system=system_prompt,
                 messages=[{
                     "role": "user",
@@ -150,28 +151,12 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
                 }]
             )
             
-            # Parse response with better error handling
-            raw = response_text.strip()
-            
-            # Remove markdown code blocks
-            if raw.startswith("```"):
-                first_newline = raw.find('\n')
-                if first_newline != -1:
-                    raw = raw[first_newline+1:]
-                raw = raw.rstrip("```").strip()
-            
-            # Try to extract JSON if it's embedded
-            if not raw.startswith('{'):
-                start = raw.find('{')
-                end = raw.rfind('}')
-                if start != -1 and end != -1:
-                    raw = raw[start:end+1]
-            
+            # Parse response with robust JSON handling
             try:
-                data = json.loads(raw)
-            except json.JSONDecodeError as je:
+                data = extract_and_fix_json(response_text)
+            except Exception as je:
                 console.print(f"[red]JSON parse error from {agent_name}: {je}[/red]")
-                console.print(f"[dim]Response preview: {raw[:200]}...[/dim]")
+                console.print(f"[dim]Response preview: {response_text[:300]}...[/dim]")
                 # Use fallback data
                 data = {
                     "hypothesis": "Unable to parse response",
@@ -201,7 +186,7 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
         
         consensus_text = client.create_message(
             model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
-            max_tokens=1000,
+            max_tokens=2000,  # Increased for longer responses
             system=CONSENSUS_PROMPT,
             messages=[{
                 "role": "user",
@@ -209,29 +194,30 @@ def hold_council_debate(logs: list[dict]) -> FaultReport:
             }]
         )
         
-        # Parse consensus with better error handling
-        raw = consensus_text.strip()
-        
-        # Remove markdown code blocks
-        if raw.startswith("```"):
-            first_newline = raw.find('\n')
-            if first_newline != -1:
-                raw = raw[first_newline+1:]
-            raw = raw.rstrip("```").strip()
-        
-        # Try to extract JSON if it's embedded
-        if not raw.startswith('{'):
-            start = raw.find('{')
-            end = raw.rfind('}')
-            if start != -1 and end != -1:
-                raw = raw[start:end+1]
-        
+        # Parse consensus with robust JSON handling
         try:
-            consensus_data = json.loads(raw)
-        except json.JSONDecodeError as je:
+            consensus_data = extract_and_fix_json(consensus_text)
+        except Exception as je:
             console.print(f"[red]Consensus JSON parse error: {je}[/red]")
-            console.print(f"[dim]Response preview: {raw[:200]}...[/dim]")
-            raise
+            console.print(f"[dim]Response preview: {consensus_text[:500]}...[/dim]")
+            console.print("[yellow]Falling back to cached consensus[/yellow]")
+            
+            # Use cached fault report but keep the debate summary
+            fault_report = CACHED_FAULT_REPORT.model_copy()
+            fault_report.debate_summary = debates
+            
+            # Display consensus panel with cached data
+            consensus_panel = Panel(
+                f"[bold]{fault_report.root_cause}[/bold]\n\n"
+                f"[dim]Severity:[/dim] {fault_report.severity}\n"
+                f"[dim]Confidence:[/dim] {fault_report.confidence:.0%}\n"
+                f"[dim]Affected Services:[/dim] {len(fault_report.affected_services)}",
+                title="[bold green]✓ Consensus Reached (Cached)[/bold green]",
+                border_style="green"
+            )
+            console.print(consensus_panel)
+            
+            return fault_report
         
         # Create FaultReport with debate summary
         fault_report = FaultReport(

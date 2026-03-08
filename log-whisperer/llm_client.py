@@ -73,11 +73,24 @@ class LLMClient:
                 }
             )
             
-            # Handle response
+            # Handle response and check if it was truncated
+            response_text = None
             if hasattr(response, 'text') and response.text:
-                return response.text
+                response_text = response.text
             elif hasattr(response, 'candidates') and response.candidates:
-                return response.candidates[0].content.parts[0].text
+                candidate = response.candidates[0]
+                response_text = candidate.content.parts[0].text
+                
+                # Check if response was truncated
+                if hasattr(candidate, 'finish_reason'):
+                    finish_reason = str(candidate.finish_reason)
+                    if 'MAX_TOKENS' in finish_reason or 'LENGTH' in finish_reason:
+                        # Response was truncated, log a warning
+                        import sys
+                        print(f"⚠️  Warning: Response truncated due to token limit", file=sys.stderr)
+            
+            if response_text:
+                return response_text
             else:
                 raise ValueError(f"Unexpected Gemini response format: {response}")
         

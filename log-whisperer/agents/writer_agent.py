@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from llm_client import get_llm_client
+from json_utils import extract_and_fix_json
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.panel import Panel
@@ -91,7 +92,7 @@ Generate exactly 3 CLI commands to remediate."""
             
             response_text = client.create_message(
                 model="claude-sonnet-4-20250514",  # Will be mapped to Gemini model
-                max_tokens=1500,
+                max_tokens=2500,  # Increased significantly for complete responses
                 system=SYSTEM_PROMPT,
                 messages=[{
                     "role": "user",
@@ -99,32 +100,14 @@ Generate exactly 3 CLI commands to remediate."""
                 }]
             )
             
-            # 3. Parse response with better error handling
-            raw = response_text.strip()
-            
-            # Remove markdown code blocks
-            if raw.startswith("```"):
-                # Find the first newline after ```
-                first_newline = raw.find('\n')
-                if first_newline != -1:
-                    raw = raw[first_newline+1:]
-                raw = raw.rstrip("```").strip()
-            
-            # Try to extract JSON if it's embedded in text
-            if not raw.startswith('{'):
-                # Look for JSON object in the response
-                start = raw.find('{')
-                end = raw.rfind('}')
-                if start != -1 and end != -1:
-                    raw = raw[start:end+1]
-            
-            console.print(f"[dim]Parsing response ({len(raw)} chars)...[/dim]")
+            # 3. Parse response with robust JSON handling
+            console.print(f"[dim]Parsing response ({len(response_text)} chars)...[/dim]")
             
             try:
-                data = json.loads(raw)
-            except json.JSONDecodeError as je:
+                data = extract_and_fix_json(response_text)
+            except Exception as je:
                 console.print(f"[red]JSON parse error: {je}[/red]")
-                console.print(f"[dim]Raw response preview: {raw[:200]}...[/dim]")
+                console.print(f"[dim]Raw response preview: {response_text[:300]}...[/dim]")
                 raise
             
             # Validate: must have exactly 3 commands
